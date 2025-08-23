@@ -1,6 +1,8 @@
 import pygame, sys, time
 
+pygame.mixer.init()
 pygame.init()
+import random
 
 CELL_SIZE = 16
 GRID_COLS = 42
@@ -42,6 +44,7 @@ font = pygame.font.Font(None, 24)
 # grid[row][col] stores the color of each cell
 grid = [[(255, 255, 255) for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
 
+pygame.mixer.music.load("Bonetrousle.mp3")
 def draw_grid(surface):
     # fill cells
     for row in range(GRID_ROWS):
@@ -143,7 +146,17 @@ def save_canvas():
     pygame.image.save(surface, filename)
     print(f"Canvas saved as {filename}")
 
-# Main loop
+prank_font = pygame.font.Font(None, 48)
+prank_text = prank_font.render("Goodluck Tryna Draw Twin", True, (255, 0, 0))
+
+prank_triggered = False
+prank_start_time = None
+
+
+
+rainbow_mode = True
+#Main Loop
+
 running = True
 while running:
     for event in pygame.event.get():
@@ -151,6 +164,11 @@ while running:
             running = False
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
+            if not prank_triggered:
+                pygame.mixer.music.play(-1)  # loop forever
+                prank_triggered = True
+                prank_start_time = pygame.time.get_ticks()
+
             mx, my = event.pos
             if mx >= CANVAS_WIDTH:
                 # clicked in palette area
@@ -160,9 +178,12 @@ while running:
                 cell = get_cells_from_mouse(event.pos)
                 if cell is not None:
                     row, col = cell
-                    if event.button == 1:      # left click = paint
-                        grid[row][col] = selected_color
-                    elif event.button == 3:    # right click = erase
+                    if event.button == 1:  # left click = paint
+                        if rainbow_mode:
+                            grid[row][col] = random.choice(PALETTE_COLORS)
+                        else:
+                            grid[row][col] = selected_color
+                    elif event.button == 3:  # right click = erase
                         grid[row][col] = (255, 255, 255)
 
         elif event.type == pygame.MOUSEMOTION:
@@ -171,7 +192,10 @@ while running:
                 cell = get_cells_from_mouse(event.pos)
                 if cell is not None:
                     r, c = cell
-                    grid[r][c] = selected_color 
+                    if rainbow_mode:
+                        grid[r][c] = random.choice(PALETTE_COLORS)
+                    else:
+                        grid[r][c] = selected_color
             elif event.buttons[2]:  # right held (erase)
                 cell = get_cells_from_mouse(event.pos)
                 if cell is not None:
@@ -179,14 +203,30 @@ while running:
                     grid[r][c] = (255, 255, 255)
 
         elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_c:  
+            if event.key == pygame.K_c:
                 clear_canvas()
-            elif event.key == pygame.K_s: 
+            elif event.key == pygame.K_s:
                 save_canvas()
+            elif event.key == pygame.K_r:  # toggle rainbow mode
+                rainbow_mode = not rainbow_mode
+                print("🌈 Rainbow mode:", rainbow_mode)
 
+    # --- drawing ---
     screen.fill((255, 255, 255))
     draw_grid(screen)
     draw_palette(screen)
+
+    # prank text fade
+    if prank_triggered:
+        elapsed = (pygame.time.get_ticks() - prank_start_time) / 1000  # seconds
+        fade_duration = 5
+        if elapsed < fade_duration:
+            alpha = max(0, 255 - int((elapsed / fade_duration) * 255))
+            text_surface = prank_text.copy()
+            text_surface.set_alpha(alpha)
+            text_rect = text_surface.get_rect(midtop=(CANVAS_WIDTH // 2, 20))
+            screen.blit(text_surface, text_rect)
+
     pygame.display.flip()
     clock.tick(60)
 
