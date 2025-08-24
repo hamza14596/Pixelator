@@ -210,7 +210,7 @@ def spread_zombies():
             grid[r][c] = new_grid[r][c]
 
 
-# --- Main Loop ---
+#Main Loop
 running = True
 while running:
     for event in pygame.event.get():
@@ -230,7 +230,7 @@ while running:
                 if cell:
                     row, col = cell
                     if event.button == 1:  # left click draw
-                        if draw_start_time is None:   # start timer on first draw
+                        if draw_start_time is None:   #start timer on first draw
                             draw_start_time = time.time()
                         grid[row][col] = random.choice(PALETTE_COLORS) if rainbow_mode else selected_color
                     elif event.button == 3:  # right click erase
