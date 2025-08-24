@@ -36,6 +36,16 @@ zombie_timer = 0
 zombie_interval = 500
 selected_color = PALETTE_COLORS[0]
 
+import sys, os
+
+def resource_path(relative_path):
+    """ Get absolute path to resource (for dev and for PyInstaller) """
+    try:
+        base_path = sys._MEIPASS  # PyInstaller temp folder
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 
 # grid[row][col] stores the color of each cell
@@ -43,12 +53,12 @@ grid = [[(255, 255, 255) for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
 
 
 try:
-    pygame.mixer.music.load("Bonetrousle.mp3")
+    pygame.mixer.music.load(resource_path("Bonetrousle.mp3"))
 except pygame.error:
     print("Warning: 'Bonetrousle.mp3' not found, background music will not play.")
 
 try:
-    explosion_sound = pygame.mixer.Sound("deltarune-explosion.mp3")
+    explosion_sound = pygame.mixer.Sound(resource_path("deltarune-explosion.mp3"))
 except pygame.error:
     print("Warning: 'deltarune-explosion.mp3' not found, exploding eraser will be silent.")
     explosion_sound = None
@@ -125,6 +135,7 @@ def clear_canvas():
     for r in range(GRID_ROWS):
         for c in range(GRID_COLS):
             grid[r][c]=(255,255,255)
+
 
 def save_canvas():
     surface = pygame.Surface((CANVAS_WIDTH,CANVAS_HEIGHT))
