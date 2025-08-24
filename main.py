@@ -36,10 +36,12 @@ zombie_timer = 0
 zombie_interval = 500
 selected_color = PALETTE_COLORS[0]
 
+
+
 # grid[row][col] stores the color of each cell
 grid = [[(255, 255, 255) for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
 
-# --- Load assets ---
+
 try:
     pygame.mixer.music.load("Bonetrousle.mp3")
 except pygame.error:
@@ -58,11 +60,11 @@ prank_text = prank_font.render("Goodluck Tryna Draw Twin", True, (255, 0, 0))
 prank_triggered = False
 prank_start_time = None
 
-exploding_eraser = True
-blast_area = 2
-rainbow_mode = True
 
-# --- Functions ---
+blast_area = 2
+
+
+#Functions
 def draw_grid(surface):
     for row in range(GRID_ROWS):
         for col in range(GRID_COLS):
@@ -143,11 +145,7 @@ def explode_erase(row,col):
             if 0<=rr<GRID_ROWS and 0<=cc<GRID_COLS:
                 grid[rr][cc]=(255,255,255)
 
-def spread_zombies():
-    for r in range(GRID_ROWS):
-        for c in range(GRID_COLS):
-            if grid[r][c] != (255, 255, 255) and random.random() < 0.1:  # 10% chance to turn green
-                grid[r][c] = (0, 255, 0)
+
 
     
     new_grid = [row[:] for row in grid]  
@@ -171,73 +169,142 @@ def spread_zombies():
 
 
 
-# Main Loop
+#Variables
+zombie_timer = 0
+zombie_interval = 500
+selected_color = PALETTE_COLORS[0]
+
+drawing = False
+draw_start_time = None
+rainbow_mode = False
+rainbow_start_time = None
+zombie_mode = False
+exploding_eraser = True 
+
+# grid[row][col] stores the color of each cell
+grid = [[(255, 255, 255) for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
+
+#Functions
+def spread_zombies():
+    new_grid = [row[:] for row in grid]
+
+    # turn some already drawn pixels green
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            if grid[r][c] != (255, 255, 255) and random.random() < 0.05:
+                new_grid[r][c] = (0, 255, 0)
+
+    # spread green to neighbors
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            if grid[r][c] == (0, 255, 0):
+                for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
+                    rr, cc = r + dr, c + dc
+                    if 0 <= rr < GRID_ROWS and 0 <= cc < GRID_COLS:
+                        if grid[rr][cc] == (255, 255, 255) and random.random() < 0.02:
+                            new_grid[rr][cc] = (0, 255, 0)
+
+    # update grid
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            grid[r][c] = new_grid[r][c]
+
+
+# --- Main Loop ---
 running = True
 while running:
     for event in pygame.event.get():
-        if event.type==pygame.QUIT:
-            running=False
+        if event.type == pygame.QUIT:
+            running = False
 
-        elif event.type==pygame.MOUSEBUTTONDOWN:
+        elif event.type == pygame.MOUSEBUTTONDOWN:
             if not prank_triggered:
-                pygame.mixer.music.play(-1)
-                prank_triggered=True
-                prank_start_time=pygame.time.get_ticks()
+                prank_triggered = True
+                prank_start_time = pygame.time.get_ticks()
 
-            mx,my=event.pos
-            if mx>=CANVAS_WIDTH:
+            mx, my = event.pos
+            if mx >= CANVAS_WIDTH:
                 handle_palette_click(event.pos)
             else:
-                cell=get_cells_from_mouse(event.pos)
+                cell = get_cells_from_mouse(event.pos)
                 if cell:
-                    row,col=cell
-                    if event.button==1:
+                    row, col = cell
+                    if event.button == 1:  # left click draw
+                        if draw_start_time is None:   # start timer on first draw
+                            draw_start_time = time.time()
                         grid[row][col] = random.choice(PALETTE_COLORS) if rainbow_mode else selected_color
-                    elif event.button==3:
+                    elif event.button == 3:  # right click erase
                         if exploding_eraser:
-                            explode_erase(row,col)
+                            explode_erase(row, col)  # explosion only on click
                         else:
-                            grid[row][col]=(255,255,255)
+                            grid[row][col] = (255, 255, 255)
 
-        elif event.type==pygame.MOUSEMOTION:
-            if event.buttons[0]:
-                cell=get_cells_from_mouse(event.pos)
+        elif event.type == pygame.MOUSEMOTION:
+            if event.buttons[0]:  # left drag drawing
+                cell = get_cells_from_mouse(event.pos)
                 if cell:
-                    r,c=cell
+                    r, c = cell
                     grid[r][c] = random.choice(PALETTE_COLORS) if rainbow_mode else selected_color
-            #Js so eraser isnt dragged in exploding mode
-            elif event.buttons[2] and not exploding_eraser:
-                cell=get_cells_from_mouse(event.pos)
+            elif event.buttons[2] and not exploding_eraser:  
+                # right drag erase, but only normal erase (not exploding)
+                cell = get_cells_from_mouse(event.pos)
                 if cell:
-                    r,c=cell
-                    grid[r][c]=(255,255,255)
+                    r, c = cell
+                    grid[r][c] = (255, 255, 255)
 
-        elif event.type==pygame.KEYDOWN:
-            if event.key==pygame.K_c: clear_canvas()
-            elif event.key==pygame.K_s: save_canvas()
-            elif event.key==pygame.K_r: rainbow_mode=not rainbow_mode
-            elif event.key==pygame.K_e: exploding_eraser=not exploding_eraser
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_c:
+                clear_canvas()
+            elif event.key == pygame.K_s:
+                save_canvas()
+            elif event.key == pygame.K_r:
+                rainbow_mode = not rainbow_mode
+            elif event.key == pygame.K_e:
+                exploding_eraser = not exploding_eraser
 
-    # Zombie timer
-    current_time=pygame.time.get_ticks()
-    if current_time-zombie_timer>zombie_interval:
-        spread_zombies()
-        zombie_timer=current_time
-
-    #Drawing
-    screen.fill((255,255,255))
+    screen.fill((255, 255, 255))
     draw_grid(screen)
     draw_palette(screen)
 
-    if prank_triggered:
-        elapsed=(pygame.time.get_ticks()-prank_start_time)/1000
-        fade_duration=5
-        if elapsed<fade_duration:
-            alpha=max(0,255-int((elapsed/fade_duration)*255))
-            text_surface=prank_text.copy()
+
+    # Timed Modes
+    fade_duration = 5
+    if draw_start_time:
+        elapsed = time.time() - draw_start_time
+        if elapsed > 8 and not rainbow_mode:
+            rainbow_mode = True
+            rainbow_start_time = pygame.time.get_ticks()
+            pygame.mixer.music.play(-1)
+            print("🌈 Rainbow Mode Activated!")
+        if elapsed > 15 and not zombie_mode:
+            zombie_mode = True
+            print("🧟 Zombie Mode Activated!")
+
+    #Zombie Spread (only if mode active)
+    if zombie_mode:
+        current_time = pygame.time.get_ticks()
+        if current_time - zombie_timer > zombie_interval:
+            spread_zombies()
+            zombie_timer = current_time
+
+    #Drawing
+    screen.fill((255, 255, 255))
+    draw_grid(screen)
+    draw_palette(screen)
+
+    #Rainbow message
+    if rainbow_mode and rainbow_start_time:
+        elapsed = (pygame.time.get_ticks() - rainbow_start_time) / 1000
+        fade_duration = 5
+        if elapsed < fade_duration:
+            alpha = max(0, 255 - int((elapsed/fade_duration) * 255))
+            text_surface = prank_text.copy()
             text_surface.set_alpha(alpha)
-            text_rect=text_surface.get_rect(midtop=(CANVAS_WIDTH//2,20))
-            screen.blit(text_surface,text_rect)
+            text_rect = text_surface.get_rect(midtop=(CANVAS_WIDTH//2, 20))
+            screen.blit(text_surface, text_rect)
+
+
+
 
     pygame.display.flip()
     clock.tick(60)
