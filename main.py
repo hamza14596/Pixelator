@@ -1,9 +1,14 @@
-import pygame, sys, time
+import pygame, sys, time, random, os
 
+# --- Set working directory to the script's folder ---
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+
+# --- Initialize Pygame ---
 pygame.mixer.init()
 pygame.init()
-import random
 
+# --- Constants ---
 CELL_SIZE = 16
 GRID_COLS = 42
 GRID_ROWS = 34
@@ -20,212 +25,219 @@ pygame.display.set_caption("Pixelator")
 clock = pygame.time.Clock()
 
 PALETTE_COLORS = [
-    (0, 0, 0),       # black
-    (255, 255, 255), # white
-    (255, 0, 0),     # red
-    (0, 255, 0),     # green
-    (0, 0, 255),     # blue
-    (255, 255, 0),   # yellow
-    (255, 165, 0),   # orange
-    (255, 192, 203), # pink
-    (128, 0, 128),   # purple
-    (165, 42, 42),   # brown
-    (64, 224, 208),  # turquoise
-    (128, 128, 128), # gray
-    (255, 20, 147),  # deep pink
-    (0, 128, 128),   # teal
-    (255, 105, 180), # hot pink
-    (0, 0, 139)      # dark blue
+    (0, 0, 0), (255, 255, 255), (255, 0, 0), (0, 255, 0), (0, 0, 255),
+    (255, 255, 0), (255, 165, 0), (255, 192, 203), (128, 0, 128), (165, 42, 42),
+    (64, 224, 208), (128, 128, 128), (255, 20, 147), (0, 128, 128), (255, 105, 180),
+    (0, 0, 139)
 ]
 
+# --- Variables ---
+zombie_timer = 0
+zombie_interval = 500
 selected_color = PALETTE_COLORS[0]
-font = pygame.font.Font(None, 24)
 
 # grid[row][col] stores the color of each cell
 grid = [[(255, 255, 255) for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
 
-pygame.mixer.music.load("Bonetrousle.mp3")
-def draw_grid(surface):
-    # fill cells
-    for row in range(GRID_ROWS):
-        for col in range(GRID_COLS):
-            x = col * CELL_SIZE
-            y = row * CELL_SIZE
-            rect = pygame.Rect(x, y, CELL_SIZE, CELL_SIZE)
-            pygame.draw.rect(surface, grid[row][col], rect)
+# --- Load assets ---
+try:
+    pygame.mixer.music.load("Bonetrousle.mp3")
+except pygame.error:
+    print("Warning: 'Bonetrousle.mp3' not found, background music will not play.")
 
-    # grid lines – horizontal
-    for r in range(GRID_ROWS + 1):
-        y = r * CELL_SIZE
-        pygame.draw.line(surface, (220, 220, 220), (0, y), (CANVAS_WIDTH, y), 1)
+try:
+    explosion_sound = pygame.mixer.Sound("deltarune-explosion.mp3")
+except pygame.error:
+    print("Warning: 'deltarune-explosion.mp3' not found, exploding eraser will be silent.")
+    explosion_sound = None
 
-    # grid lines – vertical
-    for c in range(GRID_COLS + 1):
-        x = c * CELL_SIZE  
-        pygame.draw.line(surface, (220, 220, 220), (x, 0), (x, CANVAS_HEIGHT), 1)
-
-def draw_palette(surface):
-    palette_rect = pygame.Rect(CANVAS_WIDTH, 0, PALETTE_WIDTH, WINDOW_HEIGHT)
-    pygame.draw.rect(surface, (200, 200, 200), palette_rect)
-
-    title = font.render("Palette", True, (0, 0, 0))
-    surface.blit(title, (CANVAS_WIDTH + 10, 10))
-
-    button_size = 28
-    padding = 8
-    start_x = CANVAS_WIDTH + 16
-    start_y = 30
-    per_row = 3
-
-    # draw color buttons
-    for index, color in enumerate(PALETTE_COLORS):
-        row = index // per_row
-        col = index % per_row
-        x = start_x + col * (button_size + padding)
-        y = start_y + row * (button_size + padding)
-        rect = pygame.Rect(x, y, button_size, button_size)
-
-        pygame.draw.rect(surface, color, rect)
-
-        border_color = (0, 0, 0)
-        border_width = 2 if selected_color == color else 1
-        pygame.draw.rect(surface, border_color, rect, border_width)
-
-    # helper text (moved OUT of the loop so it doesn't draw 16 times)
-    helper1 = font.render("Left Click: Paint", True, (0, 0, 0))
-    helper2 = font.render("Right Click: Erase", True, (0, 0, 0))
-    helper3 = font.render("C: Clear   S: Save", True, (0, 0, 0))
-    surface.blit(helper1, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 70))
-    surface.blit(helper2, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 50))
-    surface.blit(helper3, (CANVAS_WIDTH + 10, WINDOW_HEIGHT - 30))
-
-def get_cells_from_mouse(pos):
-    mx, my = pos
-    if mx < 0 or mx >= CANVAS_WIDTH:
-        return None
-    if my < 0 or my >= WINDOW_HEIGHT:
-        return None
-    col = mx // CELL_SIZE
-    row = my // CELL_SIZE
-    return row, col
-
-def handle_palette_click(pos):
-    global selected_color
-    button_size = 28
-    padding = 8
-    start_x = CANVAS_WIDTH + 16
-    start_y = 30
-    per_row = 3
-
-    mx, my = pos
-    for i, color in enumerate(PALETTE_COLORS):
-        row = i // per_row
-        col = i % per_row
-        x = start_x + col * (button_size + padding)
-        y = start_y + row * (button_size + padding)
-        rect = pygame.Rect(x, y, button_size, button_size)
-        if rect.collidepoint(mx, my):
-            selected_color = color
-            break
-
-def clear_canvas():
-    for row in range(GRID_ROWS):
-        for col in range(GRID_COLS):
-            grid[row][col] = (255, 255, 255)
-
-def save_canvas():
-    surface = pygame.Surface((CANVAS_WIDTH, CANVAS_HEIGHT))
-    for row in range(GRID_ROWS):
-        for col in range(GRID_COLS):
-            x = col * CELL_SIZE
-            y = row * CELL_SIZE
-            rect = pygame.Rect(x, y, CELL_SIZE, CELL_SIZE)
-            pygame.draw.rect(surface, grid[row][col], rect)
-
-    filename = f"pixel_art_{int(time.time())}.png"
-    pygame.image.save(surface, filename)
-    print(f"Canvas saved as {filename}")
-
+font = pygame.font.Font(None, 24)
 prank_font = pygame.font.Font(None, 48)
 prank_text = prank_font.render("Goodluck Tryna Draw Twin", True, (255, 0, 0))
 
 prank_triggered = False
 prank_start_time = None
 
-
-
+exploding_eraser = True
+blast_area = 2
 rainbow_mode = True
-#Main Loop
 
+# --- Functions ---
+def draw_grid(surface):
+    for row in range(GRID_ROWS):
+        for col in range(GRID_COLS):
+            rect = pygame.Rect(col*CELL_SIZE, row*CELL_SIZE, CELL_SIZE, CELL_SIZE)
+            pygame.draw.rect(surface, grid[row][col], rect)
+
+    # grid lines
+    for r in range(GRID_ROWS+1):
+        pygame.draw.line(surface, (220,220,220), (0, r*CELL_SIZE), (CANVAS_WIDTH, r*CELL_SIZE))
+    for c in range(GRID_COLS+1):
+        pygame.draw.line(surface, (220,220,220), (c*CELL_SIZE, 0), (c*CELL_SIZE, CANVAS_HEIGHT))
+
+def draw_palette(surface):
+    pygame.draw.rect(surface, (200,200,200), (CANVAS_WIDTH,0,PALETTE_WIDTH,WINDOW_HEIGHT))
+    surface.blit(font.render("Palette", True, (0,0,0)), (CANVAS_WIDTH+10,10))
+
+    button_size = 28
+    padding = 8
+    start_x = CANVAS_WIDTH+16
+    start_y = 30
+    per_row = 3
+
+    for index, color in enumerate(PALETTE_COLORS):
+        row = index // per_row
+        col = index % per_row
+        rect = pygame.Rect(start_x + col*(button_size+padding), start_y + row*(button_size+padding), button_size, button_size)
+        pygame.draw.rect(surface, color, rect)
+        pygame.draw.rect(surface, (0,0,0), rect, 2 if selected_color==color else 1)
+
+    # helper text
+    surface.blit(font.render("Left Click: Paint", True, (0,0,0)), (CANVAS_WIDTH+10, WINDOW_HEIGHT-70))
+    surface.blit(font.render("Right Click: Erase", True, (0,0,0)), (CANVAS_WIDTH+10, WINDOW_HEIGHT-50))
+    surface.blit(font.render("C: Clear  S: Save  R: Rainbow  E: Explode", True, (0,0,0)), (CANVAS_WIDTH+10, WINDOW_HEIGHT-30))
+
+def get_cells_from_mouse(pos):
+    mx, my = pos
+    if mx >= CANVAS_WIDTH or mx < 0 or my < 0 or my >= CANVAS_HEIGHT:
+        return None
+    return my//CELL_SIZE, mx//CELL_SIZE
+
+def handle_palette_click(pos):
+    global selected_color
+    button_size = 28
+    padding = 8
+    start_x = CANVAS_WIDTH+16
+    start_y = 30
+    per_row = 3
+    mx, my = pos
+    for i,color in  enumerate(PALETTE_COLORS):
+        row = i//per_row
+        col = i%per_row
+        rect = pygame.Rect(start_x+col*(button_size+padding), start_y+row*(button_size+padding), button_size, button_size)
+        if rect.collidepoint(mx,my):
+            selected_color = color
+            break
+
+def clear_canvas():
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            grid[r][c]=(255,255,255)
+
+def save_canvas():
+    surface = pygame.Surface((CANVAS_WIDTH,CANVAS_HEIGHT))
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            rect = pygame.Rect(c*CELL_SIZE, r*CELL_SIZE, CELL_SIZE, CELL_SIZE)
+            pygame.draw.rect(surface, grid[r][c], rect)
+    filename=f"pixel_art_{int(time.time())}.png"
+    pygame.image.save(surface, filename)
+    print(f"Saved: {filename}")
+
+def explode_erase(row,col):
+    if explosion_sound:
+        explosion_sound.play()
+    for dr in range(-blast_area, blast_area+1):
+        for dc in range(-blast_area, blast_area+1):
+            rr, cc = row+dr, col+dc
+            if 0<=rr<GRID_ROWS and 0<=cc<GRID_COLS:
+                grid[rr][cc]=(255,255,255)
+
+def spread_zombies():
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            if grid[r][c] != (255, 255, 255) and random.random() < 0.1:  # 10% chance to turn green
+                grid[r][c] = (0, 255, 0)
+
+    
+    new_grid = [row[:] for row in grid]  
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            if grid[r][c] == (0, 255, 0):
+                for dr, dc in [(-1,0),(1,0),(0,-1),(0,1)]:
+                    rr, cc = r + dr, c + dc
+                    if 0 <= rr < GRID_ROWS and 0 <= cc < GRID_COLS:
+                        if grid[rr][cc] == (255, 255, 255) and random.random() < 0.01:
+                            new_grid[rr][cc] = (0, 255, 0)
+    
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            grid[r][c] = new_grid[r][c]
+
+
+    for r in range(GRID_ROWS):
+        for c in range(GRID_COLS):
+            grid[r][c] = new_grid[r][c]
+
+
+
+# Main Loop
 running = True
 while running:
     for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+        if event.type==pygame.QUIT:
+            running=False
 
-        elif event.type == pygame.MOUSEBUTTONDOWN:
+        elif event.type==pygame.MOUSEBUTTONDOWN:
             if not prank_triggered:
-                pygame.mixer.music.play(-1)  # loop forever
-                prank_triggered = True
-                prank_start_time = pygame.time.get_ticks()
+                pygame.mixer.music.play(-1)
+                prank_triggered=True
+                prank_start_time=pygame.time.get_ticks()
 
-            mx, my = event.pos
-            if mx >= CANVAS_WIDTH:
-                # clicked in palette area
+            mx,my=event.pos
+            if mx>=CANVAS_WIDTH:
                 handle_palette_click(event.pos)
             else:
-                # clicked on canvas
-                cell = get_cells_from_mouse(event.pos)
-                if cell is not None:
-                    row, col = cell
-                    if event.button == 1:  # left click = paint
-                        if rainbow_mode:
-                            grid[row][col] = random.choice(PALETTE_COLORS)
+                cell=get_cells_from_mouse(event.pos)
+                if cell:
+                    row,col=cell
+                    if event.button==1:
+                        grid[row][col] = random.choice(PALETTE_COLORS) if rainbow_mode else selected_color
+                    elif event.button==3:
+                        if exploding_eraser:
+                            explode_erase(row,col)
                         else:
-                            grid[row][col] = selected_color
-                    elif event.button == 3:  # right click = erase
-                        grid[row][col] = (255, 255, 255)
+                            grid[row][col]=(255,255,255)
 
-        elif event.type == pygame.MOUSEMOTION:
-            # smooth painting while dragging
-            if event.buttons[0]:  # left held
-                cell = get_cells_from_mouse(event.pos)
-                if cell is not None:
-                    r, c = cell
-                    if rainbow_mode:
-                        grid[r][c] = random.choice(PALETTE_COLORS)
-                    else:
-                        grid[r][c] = selected_color
-            elif event.buttons[2]:  # right held (erase)
-                cell = get_cells_from_mouse(event.pos)
-                if cell is not None:
-                    r, c = cell
-                    grid[r][c] = (255, 255, 255)
+        elif event.type==pygame.MOUSEMOTION:
+            if event.buttons[0]:
+                cell=get_cells_from_mouse(event.pos)
+                if cell:
+                    r,c=cell
+                    grid[r][c] = random.choice(PALETTE_COLORS) if rainbow_mode else selected_color
+            #Js so eraser isnt dragged in exploding mode
+            elif event.buttons[2] and not exploding_eraser:
+                cell=get_cells_from_mouse(event.pos)
+                if cell:
+                    r,c=cell
+                    grid[r][c]=(255,255,255)
 
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_c:
-                clear_canvas()
-            elif event.key == pygame.K_s:
-                save_canvas()
-            elif event.key == pygame.K_r:  # toggle rainbow mode
-                rainbow_mode = not rainbow_mode
-                print("🌈 Rainbow mode:", rainbow_mode)
+        elif event.type==pygame.KEYDOWN:
+            if event.key==pygame.K_c: clear_canvas()
+            elif event.key==pygame.K_s: save_canvas()
+            elif event.key==pygame.K_r: rainbow_mode=not rainbow_mode
+            elif event.key==pygame.K_e: exploding_eraser=not exploding_eraser
 
-    # --- drawing ---
-    screen.fill((255, 255, 255))
+    # Zombie timer
+    current_time=pygame.time.get_ticks()
+    if current_time-zombie_timer>zombie_interval:
+        spread_zombies()
+        zombie_timer=current_time
+
+    #Drawing
+    screen.fill((255,255,255))
     draw_grid(screen)
     draw_palette(screen)
 
-    # prank text fade
     if prank_triggered:
-        elapsed = (pygame.time.get_ticks() - prank_start_time) / 1000  # seconds
-        fade_duration = 5
-        if elapsed < fade_duration:
-            alpha = max(0, 255 - int((elapsed / fade_duration) * 255))
-            text_surface = prank_text.copy()
+        elapsed=(pygame.time.get_ticks()-prank_start_time)/1000
+        fade_duration=5
+        if elapsed<fade_duration:
+            alpha=max(0,255-int((elapsed/fade_duration)*255))
+            text_surface=prank_text.copy()
             text_surface.set_alpha(alpha)
-            text_rect = text_surface.get_rect(midtop=(CANVAS_WIDTH // 2, 20))
-            screen.blit(text_surface, text_rect)
+            text_rect=text_surface.get_rect(midtop=(CANVAS_WIDTH//2,20))
+            screen.blit(text_surface,text_rect)
 
     pygame.display.flip()
     clock.tick(60)
